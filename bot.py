@@ -28,14 +28,14 @@ ADMIN_ID = 2045410830
 # 🔁 Стани розмови
 CHOOSING_SIZE, CHOOSING_QUANTITY, ENTER_LOCATION, ENTER_PHONE, CONFIRM_ORDER = range(5)
 
-# 🖼️ Фото (переконайся, що це прямі URL для зображень)
+# 🖼️ Фото (прямі посилання на зображення)
 PHOTOS = [
-    "https://i.ibb.co/QHC7sfB/LACOSTE.png",
-    "https://i.ibb.co/4MKZWXd/LACOSTE-1.png",
-    "https://i.ibb.co/0yKXJfB/LACOSTE-2.png",
-    "https://i.ibb.co/k8jPCj7/LACOSTE-3.png",
-    "https://i.ibb.co/YZxP2MY/LACOSTE-4.png",
-    "https://i.ibb.co/zfpvS9h/LACOSTE-5.png",
+    "https://i.ibb.co/Kjr4hxKF/LACOSTE-5.png",
+    "https://i.ibb.co/9k2R8sp5/LACOSTE-4.png",
+    "https://i.ibb.co/spVJwPsg/LACOSTE-3.png",
+    "https://i.ibb.co/SXxC7yK9/LACOSTE-2.png",
+    "https://i.ibb.co/XZhmp1ff/LACOSTE-1.png",
+    "https://i.ibb.co/JwgVgV2D/LACOSTE.png",
 ]
 
 # 📏 Розміри
@@ -73,7 +73,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     return ConversationHandler.END
 
-# 🛍️ Починаємо процес замовлення — вибір розміру
+# 🛍️ Початок процесу замовлення — вибір розміру
 async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton(size, callback_data=size)] for size in SIZES]
     await update.callback_query.message.reply_text(
@@ -82,13 +82,13 @@ async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return CHOOSING_SIZE
 
-# 📦 Після вибору розміру, просимо ввести кількість
+# 📦 Отримуємо інформацію про розмір
 async def size_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["size"] = update.callback_query.data
     await update.callback_query.message.reply_text(text="Введіть кількість футболок:")
     return CHOOSING_QUANTITY
 
-# 📍 Отримуємо інформацію про доставку
+# 📍 Отримуємо адресу доставки
 async def quantity_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["quantity"] = update.message.text
     await update.message.reply_text(
@@ -102,7 +102,7 @@ async def location_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text="Введіть номер телефону:")
     return ENTER_PHONE
 
-# 👤 Отримуємо ім'я клієнта для підтвердження замовлення
+# 👤 Отримуємо ім'я користувача для підтвердження замовлення
 async def phone_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["phone"] = update.message.text
     await update.message.reply_text(text="Введіть ваше ім'я:")
@@ -134,7 +134,7 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
-# ☑️ Підтвердження замовлення — надсилаємо повідомлення адміну
+# ☑️ Обробка підтвердження замовлення — відправка повідомлення адміну
 async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     data = context.user_data
