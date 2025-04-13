@@ -30,8 +30,8 @@ CHOOSING_SIZE, CHOOSING_QUANTITY, ENTER_LOCATION, ENTER_PHONE, CONFIRM_ORDER = r
 
 # 🖼️ Фото
 PHOTOS = [
-    "https://ibb.co/5WRp4hKB", "https://ibb.co/RkPLvzgw", "https://ibb.co/FkDqwW8h",
-    "https://ibb.co/VWN4p9vP", "https://ibb.co/pvtCZc66", "https://ibb.co/FLC2C2JR"
+    "https://i.ibb.co/bMDTDTLc/LACOSTE.png", "https://i.ibb.co/0jgPZTpp/LACOSTE-1.png", "https://i.ibb.co/spVJwPsg/LACOSTE-3.png",
+    "https://i.ibb.co/Kp7C0F5v/LACOSTE-4.png", "https://i.ibb.co/d05CM4mG/LACOSTE-5.png", "https://i.ibb.co/SXxC7yK9/LACOSTE-2.png"
 ]
 
 # 📏 Розміри
