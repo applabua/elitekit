@@ -7,6 +7,7 @@ from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputMediaPhoto,
 )
 from telegram.ext import (
     Application,
@@ -21,14 +22,14 @@ from telegram.ext import (
 nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
 
-# 🔐 Токен бота та ID адміна
+# 🔐 Токен бота и ID админа
 BOT_TOKEN = "8184346238:AAGe8YPi4MoT3kdWHWf-Ay1IwCMNlegFkAw"
 ADMIN_ID = 2045410830
 
-# 🔁 Стани розмови
-CHOOSING_SIZE, CHOOSING_QUANTITY, ENTER_LOCATION, ENTER_PHONE, CONFIRM_ORDER = range(5)
+# 🔁 Состояния диалога
+CHOOSING_SIZE, CHOOSING_QUANTITY, ENTER_LOCATION, ENTER_PHONE, CONFIRM_ORDER, WAIT_CONFIRMATION = range(6)
 
-# 🖼️ Фото (прямі посилання на зображення)
+# 🖼️ Фото (прямые ссылки на изображения)
 PHOTOS = [
     "https://i.ibb.co/Kjr4hxKF/LACOSTE-5.png",
     "https://i.ibb.co/9k2R8sp5/LACOSTE-4.png",
@@ -38,21 +39,21 @@ PHOTOS = [
     "https://i.ibb.co/JwgVgV2D/LACOSTE.png",
 ]
 
-# 📏 Розміри
+# 📏 Доступные размеры
 SIZES = ["S", "M", "L", "XL", "XXL", "XXXL"]
 
-# 👋 Стартове повідомлення (команда /start)
+# 👋 Команда /start — отправка фотоальбома, описания и кнопки "Замовити"
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     username = user.username or "немає ніка"
     user_id = user.id
     logging.info(f"🔔 Користувач: {username} ({user_id}) запустив бота")
     
-    # Надсилаємо фото
-    for link in PHOTOS:
-        await update.message.reply_photo(photo=link)
+    # Отправляем фотоальбом
+    media = [InputMediaPhoto(media=url) for url in PHOTOS]
+    await update.message.reply_media_group(media=media)
     
-    # Опис футболки
+    # Описание футболки
     description = (
         "🫡 <b>Футболка-поло ЗСУ (Олива)</b>\n"
         "🔹 Виготовлена з дихаючої, гіпоалергенної тканини Lacoste Pike\n"
@@ -73,8 +74,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     return ConversationHandler.END
 
-# 🛍️ Початок процесу замовлення — вибір розміру
+# 🛍️ Начало процесса заказа — выбор размера
 async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
     keyboard = [[InlineKeyboardButton(size, callback_data=size)] for size in SIZES]
     await update.callback_query.message.reply_text(
         text="Оберіть розмір:",
@@ -82,13 +84,14 @@ async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return CHOOSING_SIZE
 
-# 📦 Отримуємо інформацію про розмір
+# 📦 Получаем выбранный размер
 async def size_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
     context.user_data["size"] = update.callback_query.data
     await update.callback_query.message.reply_text(text="Введіть кількість футболок:")
     return CHOOSING_QUANTITY
 
-# 📍 Отримуємо адресу доставки
+# Ввод количества
 async def quantity_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["quantity"] = update.message.text
     await update.message.reply_text(
@@ -96,19 +99,19 @@ async def quantity_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ENTER_LOCATION
 
-# 📱 Отримуємо номер телефону
+# Ввод адреса доставки
 async def location_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["location"] = update.message.text
     await update.message.reply_text(text="Введіть номер телефону:")
     return ENTER_PHONE
 
-# 👤 Отримуємо ім'я користувача для підтвердження замовлення
+# Ввод номера телефона
 async def phone_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["phone"] = update.message.text
     await update.message.reply_text(text="Введіть ваше ім'я:")
     return CONFIRM_ORDER
 
-# ✅ Фінальне підтвердження замовлення
+# Ввод имени и вывод сводки заказа с кнопками подтверждения/отмены
 async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["name"] = update.message.text
     data = context.user_data
@@ -132,10 +135,11 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
-    return ConversationHandler.END
+    return WAIT_CONFIRMATION
 
-# ☑️ Обробка підтвердження замовлення — відправка повідомлення адміну
+# ☑️ Обработка подтверждения заказа — отправка уведомления админу
 async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
     user = update.effective_user
     data = context.user_data
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -157,12 +161,13 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
-# ❌ Скасування замовлення
+# ❌ Обработка отмены заказа
 async def cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
     await update.callback_query.message.reply_text(text="❌ Замовлення скасовано.")
     return ConversationHandler.END
 
-# 🚀 Головна функція запуску
+# 🚀 Главная функция запуска
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
@@ -174,11 +179,10 @@ async def main():
             ENTER_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, location_entered)],
             ENTER_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone_entered)],
             CONFIRM_ORDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_order)],
+            WAIT_CONFIRMATION: [CallbackQueryHandler(confirm_callback, pattern="^confirm$"),
+                                 CallbackQueryHandler(cancel_callback, pattern="^cancel$")]
         },
-        fallbacks=[
-            CallbackQueryHandler(confirm_callback, pattern="^confirm$"),
-            CallbackQueryHandler(cancel_callback, pattern="^cancel$")
-        ],
+        fallbacks=[CommandHandler("cancel", cancel_callback)],
     )
     
     app.add_handler(CommandHandler("start", start))
