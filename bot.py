@@ -19,8 +19,20 @@ from telegram.ext import (
     filters,
 )
 
+# =======================
+#  Настройка логирования
+# =======================
+# Установим формат для наших логов
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+# Подавляем детальные логи внутренних модулей telegram и httpx
+logging.getLogger("telegram").setLevel(logging.WARNING)
+logging.getLogger("telegram.ext").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 nest_asyncio.apply()
-logging.basicConfig(level=logging.INFO)
 
 # 🔐 Токен бота и ID админа
 BOT_TOKEN = "8184346238:AAGe8YPi4MoT3kdWHWf-Ay1IwCMNlegFkAw"
@@ -29,7 +41,7 @@ ADMIN_ID = 2045410830
 # 🔁 Состояния диалога
 CHOOSING_SIZE, CHOOSING_QUANTITY, ENTER_LOCATION, ENTER_PHONE, CONFIRM_ORDER, WAIT_CONFIRMATION = range(6)
 
-# 🖼️ Фото (прямые ссылки на изображения) – удалена картинка: https://i.ibb.co/SXxC7yK9/LACOSTE-2.png
+# 🖼️ Фото (прямые ссылки на изображения) – исключена картинка: https://i.ibb.co/SXxC7yK9/LACOSTE-2.png
 PHOTOS = [
     "https://i.ibb.co/Kjr4hxKF/LACOSTE-5.png",
     "https://i.ibb.co/9k2R8sp5/LACOSTE-4.png",
@@ -41,20 +53,26 @@ PHOTOS = [
 # 📏 Доступные размеры
 SIZES = ["S", "M", "L", "XL", "XXL", "XXXL"]
 
-# 👋 Команда /start — отправка фотоальбома, описания и кнопки "Замовити"
+# ===========================
+#      ОБРАБОТЧИКИ БОТА
+# ===========================
+
+# /start — отправка альбома, описания и кнопки "Замовити"
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Сбрасываем данные пользователя, чтобы избежать залипания предыдущих состояний
+    # Сбрасываем данные, чтобы предыдущие заказы не мешали
     context.user_data.clear()
+    
     user = update.effective_user
     username = user.username or "немає ніка"
     user_id = user.id
-    logging.info(f"🔔 Користувач: {username} ({user_id}) запустив бота")
+    # Логируем только то, что пользователь запустил бота
+    logging.info(f"Пользователь @{username} ({user_id}) запустил бота.")
     
     # Отправляем фотоальбом
     media = [InputMediaPhoto(media=url) for url in PHOTOS]
     await update.message.reply_media_group(media=media)
     
-    # Описание футболки
+    # Описание товара
     description = (
         "🫡 <b>Футболка-поло ЗСУ (Олива)</b>\n"
         "🔹 Виготовлена з дихаючої, гіпоалергенної тканини Lacoste Pike\n"
@@ -75,11 +93,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     return ConversationHandler.END
 
-# 🛍️ Начало процесса заказа — выбор размера
+# Начало процесса заказа — выбор размера
 async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Сбрасываем данные, если пользователь начинает новый заказ
+    # Сбрасываем данные при начале нового заказа
     context.user_data.clear()
+    
+    # Подтверждаем callback
     await update.callback_query.answer()
+    
+    user = update.effective_user
+    username = user.username or "немає ніка"
+    user_id = user.id
+    # Логируем только то, что пользователь нажал кнопку "Замовити"
+    logging.info(f"Пользователь @{username} ({user_id}) нажал кнопку 'Замовити'.")
+    
+    # Формируем кнопки с размерами
     keyboard = [[InlineKeyboardButton(size, callback_data=size)] for size in SIZES]
     await update.callback_query.message.reply_text(
         text="Оберіть розмір:",
@@ -87,7 +115,7 @@ async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return CHOOSING_SIZE
 
-# 📦 Получаем выбранный размер
+# Получаем выбранный размер
 async def size_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     context.user_data["size"] = update.callback_query.data
@@ -140,16 +168,20 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return WAIT_CONFIRMATION
 
-# ☑️ Обработка подтверждения заказа — отправка уведомления админу
+# Обработка подтверждения заказа — отправка уведомления админу
 async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     user = update.effective_user
+    username = user.username or "немає ніка"
+    user_id = user.id
+    
     data = context.user_data
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
+    # Формируем сообщение админу
     message = (
         f"🆕 НОВЕ ЗАМОВЛЕННЯ\n"
-        f"👤 @{user.username} ({user.id})\n"
+        f"👤 @{username} ({user_id})\n"
         f"⏰ {now} (за Києвом)\n\n"
         f"Розмір: {data['size']}\n"
         f"Кількість: {data['quantity']}\n"
@@ -157,23 +189,38 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Телефон: {data['phone']}\n"
         f"Ім'я: {data['name']}"
     )
+    # Отправляем админу
     await context.bot.send_message(chat_id=ADMIN_ID, text=message)
+    
+    # Логируем только факт подтверждения заказа
+    logging.info(
+        f"Пользователь @{username} ({user_id}) подтвердил заказ: "
+        f"size={data['size']}, quantity={data['quantity']}, location={data['location']}"
+    )
     
     await update.callback_query.message.reply_text(
         text="✅ Дякуємо! Ваше замовлення обробляється. Очікуйте на дзвінок 📞"
     )
     return ConversationHandler.END
 
-# ❌ Обработка отмены заказа
+# Обработка отмены заказа
 async def cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
+    user = update.effective_user
+    username = user.username or "немає ніка"
+    user_id = user.id
+    logging.info(f"Пользователь @{username} ({user_id}) отменил заказ.")
+    
     await update.callback_query.message.reply_text(text="❌ Замовлення скасовано.")
     return ConversationHandler.END
 
-# 🚀 Главная функция запуска
+# ===========================
+#    ГЛАВНАЯ ФУНКЦИЯ ЗАПУСКА
+# ===========================
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
+    # Определяем многошаговую логику заказа
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(order_callback, pattern="^order$")],
         states={
@@ -182,16 +229,22 @@ async def main():
             ENTER_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, location_entered)],
             ENTER_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone_entered)],
             CONFIRM_ORDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_order)],
-            WAIT_CONFIRMATION: [CallbackQueryHandler(confirm_callback, pattern="^confirm$"),
-                                 CallbackQueryHandler(cancel_callback, pattern="^cancel$")]
+            WAIT_CONFIRMATION: [
+                CallbackQueryHandler(confirm_callback, pattern="^confirm$"),
+                CallbackQueryHandler(cancel_callback, pattern="^cancel$")
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel_callback)],
     )
     
+    # Добавляем обработчики
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv_handler)
     
-    print("Бот запущено 🟢")
+    # Уведомим, что бот запущен (появится в консоли/логах)
+    print("Бот запущен 🟢")
+    
+    # Запускаем бота
     await app.run_polling()
 
 if __name__ == "__main__":
