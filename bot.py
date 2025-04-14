@@ -29,12 +29,11 @@ ADMIN_ID = 2045410830
 # 🔁 Состояния диалога
 CHOOSING_SIZE, CHOOSING_QUANTITY, ENTER_LOCATION, ENTER_PHONE, CONFIRM_ORDER, WAIT_CONFIRMATION = range(6)
 
-# 🖼️ Фото (прямые ссылки на изображения)
+# 🖼️ Фото (прямые ссылки на изображения) – удалена картинка: https://i.ibb.co/SXxC7yK9/LACOSTE-2.png
 PHOTOS = [
     "https://i.ibb.co/Kjr4hxKF/LACOSTE-5.png",
     "https://i.ibb.co/9k2R8sp5/LACOSTE-4.png",
     "https://i.ibb.co/spVJwPsg/LACOSTE-3.png",
-    "https://i.ibb.co/SXxC7yK9/LACOSTE-2.png",
     "https://i.ibb.co/XZhmp1ff/LACOSTE-1.png",
     "https://i.ibb.co/JwgVgV2D/LACOSTE.png",
 ]
@@ -44,6 +43,8 @@ SIZES = ["S", "M", "L", "XL", "XXL", "XXXL"]
 
 # 👋 Команда /start — отправка фотоальбома, описания и кнопки "Замовити"
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Сбрасываем данные пользователя, чтобы избежать залипания предыдущих состояний
+    context.user_data.clear()
     user = update.effective_user
     username = user.username or "немає ніка"
     user_id = user.id
@@ -76,6 +77,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # 🛍️ Начало процесса заказа — выбор размера
 async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Сбрасываем данные, если пользователь начинает новый заказ
+    context.user_data.clear()
     await update.callback_query.answer()
     keyboard = [[InlineKeyboardButton(size, callback_data=size)] for size in SIZES]
     await update.callback_query.message.reply_text(
