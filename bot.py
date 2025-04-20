@@ -40,8 +40,7 @@ ADMIN_ID = 2045410830
 # 🔁 Состояния диалога
 CHOOSING_SIZE, CHOOSING_QUANTITY, ENTER_LOCATION, ENTER_PHONE, CONFIRM_ORDER, WAIT_CONFIRMATION = range(6)
 
-# 🖼️ Ссылки на КВАЛИТЕТНЫЕ изображения  
-# Добавлен параметр ?quality=100 (если поддерживается сервером) и исключена одна картинка
+# 🖼️ Ссылки на КВАЛИТЕТНЫЕ изображения
 PHOTOS = [
     "https://i.ibb.co/Kjr4hxKF/LACOSTE-5.png?quality=100",
     "https://i.ibb.co/9k2R8sp5/LACOSTE-4.png?quality=100",
@@ -57,21 +56,32 @@ SIZES = ["S", "M", "L", "XL", "XXL", "XXXL"]
 #       ОБРАБОТЧИКИ БОТА
 # ===========================
 
-# /start — отправка фотоальбома, краткого описания и кнопки "Замовити"
+# /start — отправка фотоальбома, краткого описания, кнопки "Замовити"
+# и уведомления админу о заходе пользователя
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    
+
     user = update.effective_user
-    username = user.username or "немає ніка"
+    username = user.username or user.first_name or "клієнт"
     user_id = user.id
     logging.info(f"Пользователь @{username} ({user_id}) запустил бота.")
-    
+
+    # Отправляем уведомление админу
+    admin_message = (
+        f"👤 <a href=\"tg://user?id={user_id}\">{username}</a> ({user_id}) "
+        f"відкрив бота."
+    )
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=admin_message,
+        parse_mode="HTML"
+    )
+
     # Отправляем фотоальбом
     media = [InputMediaPhoto(media=url) for url in PHOTOS]
     await update.message.reply_media_group(media=media)
-    
-    # Краткое, но ёмкое описание товара с переносами строк,
-    # чтобы текст не был слишком большим и не растягивался по ширине.
+
+    # Описание товара
     description = (
         "🫡 <b>Футболка-поло ЗСУ (Олива)</b>\n"
         "(Статутного зразку)\n"
@@ -87,27 +97,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "   100% передоплати."
     )
     await update.message.reply_text(text=description, parse_mode="HTML")
-    
+
     # Кнопка "Замовити"
     keyboard = [[InlineKeyboardButton("🛒 Замовити", callback_data="order")]]
     await update.message.reply_text(
         text="Натисніть, щоб зробити замовлення:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    
+
     return ConversationHandler.END
 
 # Начало процесса заказа — выбор размера
 async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.callback_query.answer()
-    
+
     user = update.effective_user
-    username = user.username or "немає ніка"
+    username = user.username or user.first_name or "клієнт"
     user_id = user.id
     logging.info(f"Пользователь @{username} ({user_id}) нажал кнопку 'Замовити'.")
-    
-    # Выводим варианты размеров
+
     keyboard = [[InlineKeyboardButton(size, callback_data=size)] for size in SIZES]
     await update.callback_query.message.reply_text(
         text="Оберіть розмір:",
@@ -146,7 +155,7 @@ async def phone_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["name"] = update.message.text
     data = context.user_data
-    
+
     summary = (
         "🧾 <b>Ваше замовлення:</b>\n"
         f"👕 Розмір: {data['size']}\n"
@@ -172,11 +181,11 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     user = update.effective_user
-    username = user.username or "немає ніка"
+    username = user.username or user.first_name or "клієнт"
     user_id = user.id
     data = context.user_data
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
+
     message = (
         "🆕 НОВЕ ЗАМОВЛЕННЯ\n"
         f"👤 @{username} ({user_id})\n"
@@ -188,12 +197,12 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Ім'я: {data['name']}"
     )
     await context.bot.send_message(chat_id=ADMIN_ID, text=message)
-    
+
     logging.info(
         f"Пользователь @{username} ({user_id}) підтвердив заказ: "
         f"size={data['size']}, quantity={data['quantity']}, location={data['location']}"
     )
-    
+
     await update.callback_query.message.reply_text(
         text="✅ Дякуємо! Ваше замовлення обробляється. Очікуйте на дзвінок 📞"
     )
@@ -203,10 +212,10 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     user = update.effective_user
-    username = user.username or "немає ніка"
+    username = user.username or user.first_name or "клієнт"
     user_id = user.id
     logging.info(f"Пользователь @{username} ({user_id}) скасував замовлення.")
-    
+
     await update.callback_query.message.reply_text(text="❌ Замовлення скасовано.")
     return ConversationHandler.END
 
@@ -215,7 +224,7 @@ async def cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ===========================
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
-    
+
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(order_callback, pattern="^order$")],
         states={
@@ -231,10 +240,10 @@ async def main():
         },
         fallbacks=[CommandHandler("cancel", cancel_callback)],
     )
-    
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv_handler)
-    
+
     print("Бот запущен 🟢")
     await app.run_polling()
 
